@@ -1,6 +1,5 @@
 <html>
   <head>
-    <script defer src="draw.js"></script>
     <link rel="stylesheet" href="ui.css" />
   </head>
 
@@ -9,6 +8,7 @@
     <div id="palette"></div>
     <hr />
 
+    <button id="nextTileButton">Next Tile</button>
     <button id="finishTileButton">Finish Tile</button>
     <button id="downloadButton">Download Image</button>
     <hr />
@@ -16,196 +16,142 @@
     <canvas id="pixelCanvas"></canvas>
 
     <script>
-      const canvas = document.getElementById("pixelCanvas");
-      const ctx = canvas.getContext("2d");
-      const gridSize = 3;
-      const tileSize = 16;
-      const pixelSize = 10; // Scaling up pixels for better visibility
-      const currentTile = { x: 0, y: 0 }; // Tracks which tile is active
-      const finishedTiles = new Set(); // Tracks finished tiles
-      
-      const downloadButton = document.getElementById("downloadButton");
-      let isDrawing = false;
-      let selectedColor = "#000000"; // Default black color
-      let cursorX = -1,
-        cursorY = -1;
+const canvas = document.getElementById('pixelCanvas');
+const ctx = canvas.getContext('2d');
+const gridSize = 3;
+const tileSize = 16;
+const pixelSize = 10; // Scaling up pixels for better visibility
+const currentTile = { x: 0, y: 0 }; // Tracks which tile is active
+const nextTileButton = document.getElementById('nextTileButton');
+let isDrawing = false;
+let selectedColor = '#000000'; // Default black color
 
-      // Define a 32-color palette
-      const palette = [
-        "#000000",
-        "#FFFFFF",
-        "#FF0000",
-        "#00FF00",
-        "#0000FF",
-        "#FFFF00",
-        "#FF00FF",
-        "#00FFFF",
-        "#800000",
-        "#808000",
-        "#008000",
-        "#800080",
-        "#808080",
-        "#C0C0C0",
-        "#008080",
-        "#000080",
-        "#FFA500",
-        "#A52A2A",
-        "#DC143C",
-        "#FF4500",
-        "#2E8B57",
-        "#32CD32",
-        "#ADFF2F",
-        "#FFD700",
-        "#DAA520",
-        "#B8860B",
-        "#8B4513",
-        "#FA8072",
-        "#E9967A",
-        "#4682B4",
-        "#5F9EA0",
-        "#7FFFD4",
-      ];
+// Define a 32-color palette
+const palette = [
+    '#000000', '#FFFFFF', '#FF0000', '#00FF00', '#0000FF', '#FFFF00', '#FF00FF', '#00FFFF',
+    '#800000', '#808000', '#008000', '#800080', '#808080', '#C0C0C0', '#008080', '#000080',
+    '#FFA500', '#A52A2A', '#DC143C', '#FF4500', '#2E8B57', '#32CD32', '#ADFF2F', '#FFD700',
+    '#DAA520', '#B8860B', '#8B4513', '#FA8072', '#E9967A', '#4682B4', '#5F9EA0', '#7FFFD4'
+];
 
-      canvas.width = gridSize * tileSize * pixelSize;
-      canvas.height = gridSize * tileSize * pixelSize;
+// Resize canvas based on grid size
+canvas.width = gridSize * tileSize * pixelSize;
+canvas.height = gridSize * tileSize * pixelSize;
 
-      const grid = Array(gridSize * tileSize)
-        .fill()
-        .map(() => Array(gridSize * tileSize).fill("#FFFFFF"));
+// Grid to store pixel data
+const grid = Array(gridSize * tileSize).fill().map(() => Array(gridSize * tileSize).fill('#FFFFFF'));
 
-      const paletteContainer = document.getElementById("palette");
-      palette.forEach((color) => {
-        const colorButton = document.createElement("div");
-        colorButton.style.background = color;
-        colorButton.classList.add("color-swatch");
-        colorButton.addEventListener("click", () => (selectedColor = color));
-        paletteContainer.appendChild(colorButton);
-      });
+// Create a color palette UI
+const paletteContainer = document.getElementById('palette');
+palette.forEach(color => {
+    const colorButton = document.createElement('div');
+    colorButton.style.background = color;
+    colorButton.classList.add('color-swatch');
+    colorButton.addEventListener('click', () => selectedColor = color);
+    paletteContainer.appendChild(colorButton);
+});
 
-      function drawGrid() {
-        ctx.clearRect(0, 0, canvas.width, canvas.height);
-        for (let y = 0; y < gridSize * tileSize; y++) {
-          for (let x = 0; x < gridSize * tileSize; x++) {
+// Draw grid on canvas
+function drawGrid() {
+    ctx.clearRect(0, 0, canvas.width, canvas.height);
+    for (let y = 0; y < gridSize * tileSize; y++) {
+        for (let x = 0; x < gridSize * tileSize; x++) {
             const tileX = Math.floor(x / tileSize);
             const tileY = Math.floor(y / tileSize);
-            const tileKey = `${tileX},${tileY}`;
-            const inCurrentTile =
-              tileX === currentTile.x && tileY === currentTile.y;
-            const isBorder =
-              x % tileSize === 0 ||
-              x % tileSize === 15 ||
-              y % tileSize === 0 ||
-              y % tileSize === 15;
-            const isFinished = finishedTiles.has(tileKey);
-
-            ctx.fillStyle = isFinished
-              ? "#DDDDDD"
-              : inCurrentTile || isBorder
-              ? grid[y][x]
-              : "#AAAAAA";
+            const inCurrentTile = tileX === currentTile.x && tileY === currentTile.y;
+            const isBorder = (x % tileSize === 0 || x % tileSize === 15 || y % tileSize === 0 || y % tileSize === 15);
+            
+            ctx.fillStyle = (inCurrentTile || isBorder) ? grid[y][x] : '#AAAAAA'; // Darker grey for hidden pixels
             ctx.fillRect(x * pixelSize, y * pixelSize, pixelSize, pixelSize);
-
-            ctx.strokeStyle = "#CCCCCC";
-            ctx.lineWidth = 0.5;
-            ctx.strokeRect(x * pixelSize, y * pixelSize, pixelSize, pixelSize);
-          }
         }
+    }
 
-        ctx.strokeStyle = "#000000";
-        ctx.lineWidth = 4;
-        for (let i = 1; i < gridSize; i++) {
-          let pos = i * tileSize * pixelSize;
-          ctx.beginPath();
-          ctx.moveTo(pos, 0);
-          ctx.lineTo(pos, canvas.height);
-          ctx.moveTo(0, pos);
-          ctx.lineTo(canvas.width, pos);
-          ctx.stroke();
-        }
+    // Draw thick tile borders
+    ctx.strokeStyle = '#000000';
+    ctx.lineWidth = 4;
+    for (let i = 1; i < gridSize; i++) {
+        let pos = i * tileSize * pixelSize;
+        ctx.beginPath();
+        ctx.moveTo(pos, 0);
+        ctx.lineTo(pos, canvas.height);
+        ctx.moveTo(0, pos);
+        ctx.lineTo(canvas.width, pos);
+        ctx.stroke();
+    }
+    updateButton();
+}
 
-        if (cursorX >= 0 && cursorY >= 0) {
-          ctx.strokeStyle = selectedColor;
-          ctx.lineWidth = 2;
-          ctx.strokeRect(
-            cursorX * pixelSize,
-            cursorY * pixelSize,
-            pixelSize,
-            pixelSize
-          );
-        }
+drawGrid();
 
-        
-      }
+// Handle drawing with mouse click and drag
+canvas.addEventListener('mousedown', (event) => {
+    isDrawing = true;
+    drawPixel(event);
+});
+canvas.addEventListener('mouseup', () => isDrawing = false);
+canvas.addEventListener('mousemove', (event) => {
+    if (isDrawing) drawPixel(event);
+});
 
-      drawGrid();
+// Right-click to pick color (eyedropper)
+canvas.addEventListener('contextmenu', (event) => {
+    event.preventDefault();
+    const rect = canvas.getBoundingClientRect();
+    const x = Math.floor((event.clientX - rect.left) / pixelSize);
+    const y = Math.floor((event.clientY - rect.top) / pixelSize);
+    selectedColor = grid[y][x];
+});
 
-      canvas.addEventListener("mousedown", (event) => {
-        isDrawing = true;
-        drawPixel(event);
-      });
-      canvas.addEventListener("mouseup", () => (isDrawing = false));
-      canvas.addEventListener("mousemove", (event) => {
-        updateCursor(event);
-        if (isDrawing) drawPixel(event);
-      });
-      canvas.addEventListener("contextmenu", (event) => {
-        event.preventDefault();
-        const rect = canvas.getBoundingClientRect();
-        const x = Math.floor((event.clientX - rect.left) / pixelSize);
-        const y = Math.floor((event.clientY - rect.top) / pixelSize);
-        selectedColor = grid[y][x];
-      });
+function drawPixel(event) {
+    const rect = canvas.getBoundingClientRect();
+    const x = Math.floor((event.clientX - rect.left) / pixelSize);
+    const y = Math.floor((event.clientY - rect.top) / pixelSize);
 
-      function drawPixel(event) {
-        const rect = canvas.getBoundingClientRect();
-        const x = Math.floor((event.clientX - rect.left) / pixelSize);
-        const y = Math.floor((event.clientY - rect.top) / pixelSize);
-
-        const tileX = Math.floor(x / tileSize);
-        const tileY = Math.floor(y / tileSize);
-        const tileKey = `${tileX},${tileY}`;
-        if (!finishedTiles.has(tileKey)) {
-          grid[y][x] = selectedColor;
-          drawGrid();
-        }
-      }
-
-      function updateCursor(event) {
-        const rect = canvas.getBoundingClientRect();
-        cursorX = Math.floor((event.clientX - rect.left) / pixelSize);
-        cursorY = Math.floor((event.clientY - rect.top) / pixelSize);
+    // Ensure user can only draw within their tile
+    const tileX = currentTile.x * tileSize;
+    const tileY = currentTile.y * tileSize;
+    if (x >= tileX && x < tileX + tileSize && y >= tileY && y < tileY + tileSize) {
+        grid[y][x] = selectedColor;
         drawGrid();
-      }
+    }
+}
 
-      canvas.addEventListener("click", (event) => {
-        const rect = canvas.getBoundingClientRect();
-        const x = Math.floor(
-          (event.clientX - rect.left) / (tileSize * pixelSize)
-        );
-        const y = Math.floor(
-          (event.clientY - rect.top) / (tileSize * pixelSize)
-        );
-        currentTile.x = x;
-        currentTile.y = y;
-        drawGrid();
-      });
+// Function to move to the next tile
+function nextTile() {
+    if (currentTile.x < gridSize - 1) {
+        currentTile.x++;
+    } else if (currentTile.y < gridSize - 1) {
+        currentTile.x = 0;
+        currentTile.y++;
+    } else {
+        finishAndReveal();
+        return;
+    }
+    drawGrid();
+}
 
-      function finishTile() {
-        const tileKey = `${currentTile.x},${currentTile.y}`;
-        finishedTiles.add(tileKey);
-        drawGrid();
-      }
+// Update button text based on active tile
+function updateButton() {
+    if (currentTile.x === gridSize - 1 && currentTile.y === gridSize - 1) {
+        nextTileButton.textContent = 'Finish and Reveal';
+    } else {
+        nextTileButton.textContent = `Next Tile (${currentTile.x}, ${currentTile.y})`;
+    }
+}
 
-      document
-        .getElementById("finishTileButton")
-        .addEventListener("click", finishTile);
+// Function to reveal entire image
+function finishAndReveal() {
+    for (let y = 0; y < gridSize * tileSize; y++) {
+        for (let x = 0; x < gridSize * tileSize; x++) {
+            ctx.fillStyle = grid[y][x];
+            ctx.fillRect(x * pixelSize, y * pixelSize, pixelSize, pixelSize);
+        }
+    }
+    nextTileButton.style.display = 'none';
+}
 
-      downloadButton.addEventListener("click", () => {
-        const link = document.createElement("a");
-        link.download = "pixel_exquisite_corpse.png";
-        link.href = canvas.toDataURL();
-        link.click();
-      });
+document.getElementById('nextTileButton').addEventListener('click', nextTile);
+
     </script>
   </body>
 </html>
